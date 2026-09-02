@@ -1,0 +1,37 @@
+{
+	"name": "kiln",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"packageManager": "pnpm@12.1.0",
+	"scripts": {
+		"dev": "nuxt dev --port 43173 --host 127.0.0.1",
+		"build": "node scripts/sync-watlas-wasm.mjs && nuxt build && node scripts/assert-client-assets.mjs",
+		"preview": "nuxt preview --port 43173 --host 127.0.0.1",
+		"postinstall": "nuxt prepare && node scripts/sync-watlas-wasm.mjs",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"fixture": "vite-node scripts/write-sample.ts",
+		"quality:geometry": "vite-node scripts/geometry-quality.ts"
+	},
+	"dependencies": {
+		"@gltf-transform/core": "^4.2.1",
+		"@gltf-transform/extensions": "4.4.2",
+		"fast-png": "^6.4.0",
+		"jpeg-js": "^0.4.4",
+		"meshoptimizer": "^1.2.0",
+		"nuxt": "^4.5.2",
+		"three": "^0.180.0",
+		"three-mesh-bvh": "^0.9.3",
+		"vue": "^3.5.40",
+		"watlas": "^1.0.1"
+	},
+	"devDependencies": {
+		"@types/node": "^26.4.0",
+		"@types/three": "^0.180.0",
+		"typescript": "^6.0.3",
+		"vite": "^8.0.16",
+		"vite-node": "^5.1.2",
+		"vitest": "^4.1.8"
+	}
+}

@@ -1,0 +1,31 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+.nuxt
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Generated from node_modules/watlas
+public/watlas.wasm
+
+# Generated locally; too large for the repo
+public/sample-crest-100k.glb
+static/sample-crest-100k.glb
