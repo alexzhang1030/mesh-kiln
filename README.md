@@ -66,4 +66,4 @@ Pinned packages: `meshoptimizer@1.2.0`, `watlas@1.0.1`.
 
 ## Out of scope (v1)
 
-Accounts, Cloud, impostors, splats, generative models, analytics, AO maps, OBJ/FBX import.
+Impostors, splats, generative models, AO maps, OBJ/FBX import.
