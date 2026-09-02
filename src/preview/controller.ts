@@ -1,6 +1,4 @@
-export type PreviewShading = 'lit' | 'unlit';
-
-export type PreviewInspect = 'result' | 'mesh' | 'baseColor' | 'normal' | 'roughness' | 'metallic';
+export type { PreviewInspect, PreviewShading } from './shading';
 
 export type PreviewHandle = {
 	loadSource(glb: ArrayBuffer): void;

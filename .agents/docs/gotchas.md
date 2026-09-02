@@ -80,6 +80,8 @@ The merged Needle owl evidence used one decoded public source and a 6k budget:
 
 The browser gate used the checked-in Bear: 499,932 source triangles to 5,995 baked triangles at a 256px atlas, with face, scarf, limbs, and continuous surface preserved. Re-run Lit and Surface comparison whenever topology routing, UV orientation, projection scoring, tangent construction, material decoding, or preview shading changes.
 
+Lit and Unlit must apply to both compare panes for Result and Base color. Map inspect used to swap only the baked pane to `MeshBasicMaterial` for Base color, so studio lighting hit the source and skipped the bake. Compare then looked like a color-transfer failure. Normal, roughness, and metallic stay unlit debug views. `KHR_materials_unlit` sources still load as `MeshBasicMaterial` so vertex-color reconstructions do not pick up the studio lights. Evidence: [`shading.test.ts`](../../src/preview/shading.test.ts).
+
 The standard verification set is:
 
 ```bash
