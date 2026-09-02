@@ -38,6 +38,8 @@ describe('example catalog', () => {
 		expect(parsed.source.uvs).not.toBeNull();
 		expect(resolveTopologyForMesh('authored', parsed.source)).toBe('authored');
 		expect(resolveTopologyForMesh('auto', parsed.source)).toBe('authored');
+		expect(resolveTopologyForMesh('auto', parsed.source, { triangleBudget: 6_000 })).toBe('surface');
+		expect(resolveTopologyForMesh('auto', parsed.source, { triangleBudget: 40_000 })).toBe('authored');
 	});
 
 	it('bear stays on seam-welded surface, not voxel reconstruction', async () => {

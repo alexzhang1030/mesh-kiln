@@ -1,4 +1,10 @@
-import { triangleCountOf, vertexCountOf, type MeshGeometry, type TopologyMode } from './types';
+import {
+	triangleCountOf,
+	vertexCountOf,
+	type GeometryTarget,
+	type MeshGeometry,
+	type TopologyMode
+} from './types';
 
 export type TopologyChoice = 'voxel' | 'surface' | 'authored';
 
@@ -6,6 +12,13 @@ export const DENSE_SCULPT_TRIANGLES = 100_000;
 export const FRAGMENT_UNIQUE_POSITION_RATIO = 0.97;
 export const FRAGMENT_SHARED_EDGE_RATIO = 0.65;
 export const FRAGMENT_VOXEL_TRIANGLES = 10_000;
+/** Authored QEM keeps source UVs. Below this keep-ratio those UVs mosaic. */
+export const AUTHORED_KEEP_RATIO = 0.5;
+
+export type TopologyHints = {
+	triangleBudget?: number;
+	geometryTarget?: GeometryTarget;
+};
 
 export function isTriangleSoup(positions: Float32Array, indices: Uint32Array): boolean {
 	const triangles = triangleCountOf(indices);
@@ -65,9 +78,10 @@ export function isFragmentedSurface(positions: Float32Array, indices: Uint32Arra
 
 export function resolveTopologyMode(
 	mode: TopologyMode,
-	_sourceTriangleCount: number,
-	_soup: boolean,
-	_fragmented = false
+	sourceTriangleCount: number,
+	soup: boolean,
+	fragmented = false,
+	hints: TopologyHints = {}
 ): TopologyChoice {
 	switch (mode) {
 		case 'voxel':
@@ -75,8 +89,10 @@ export function resolveTopologyMode(
 		case 'authored':
 			return 'authored';
 		case 'auto':
-			if (_fragmented && _sourceTriangleCount >= FRAGMENT_VOXEL_TRIANGLES) return 'voxel';
-			return _sourceTriangleCount >= DENSE_SCULPT_TRIANGLES || _soup ? 'surface' : 'authored';
+			if (fragmented && sourceTriangleCount >= FRAGMENT_VOXEL_TRIANGLES) return 'voxel';
+			if (sourceTriangleCount >= DENSE_SCULPT_TRIANGLES || soup) return 'surface';
+			if (authoredKeepsSourceMaps(sourceTriangleCount, hints)) return 'authored';
+			return 'surface';
 		default: {
 			const exhausted: never = mode;
 			return exhausted;
@@ -84,13 +100,25 @@ export function resolveTopologyMode(
 	}
 }
 
-export function resolveTopologyForMesh(mode: TopologyMode, mesh: MeshGeometry): TopologyChoice {
+export function resolveTopologyForMesh(
+	mode: TopologyMode,
+	mesh: MeshGeometry,
+	hints: TopologyHints = {}
+): TopologyChoice {
 	return resolveTopologyMode(
 		mode,
 		triangleCountOf(mesh.indices),
 		isTriangleSoup(mesh.positions, mesh.indices),
-		isFragmentedSurface(mesh.positions, mesh.indices)
+		isFragmentedSurface(mesh.positions, mesh.indices),
+		hints
 	);
+}
+
+function authoredKeepsSourceMaps(sourceTriangleCount: number, hints: TopologyHints): boolean {
+	if (hints.geometryTarget === 'error') return true;
+	const budget = hints.triangleBudget;
+	if (budget == null || sourceTriangleCount <= 0) return true;
+	return budget >= sourceTriangleCount * AUTHORED_KEEP_RATIO;
 }
 
 export function topologyChoiceLabel(choice: TopologyChoice): string {

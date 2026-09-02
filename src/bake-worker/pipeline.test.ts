@@ -45,20 +45,38 @@ describe('bake pipeline', () => {
 		expect(baked.materials[0]?.baseColor?.rgba).toEqual(sourceAlbedo?.rgba);
 	});
 
-	it('auto uses authored QEM on a clean over-budget model', async () => {
+	it('auto uses authored QEM on a clean model that keeps most of its triangles', async () => {
 		const glb = await createCrestGlb({ segments: 48, name: 'crest-auto' });
 		const { source, summary } = await parseGlb(glb);
 		expect(summary.triangleCount).toBeGreaterThan(6000);
 		expect(summary.triangleCount).toBeLessThan(100_000);
+		const budget = Math.max(6_000, Math.ceil(summary.triangleCount * 0.6));
 		const { complete, stages } = await bake(source, {
-			triangleBudget: 2000,
+			triangleBudget: budget,
 			topologyMode: 'auto',
 			mapSize: 64
 		});
 		expect(complete.topology).toBe('authored');
 		expect(complete.triangleCount).toBeGreaterThan(0);
-		expect(complete.triangleCount).toBeLessThanOrEqual(2000);
+		expect(complete.triangleCount).toBeLessThanOrEqual(budget);
 		expect(stages).toEqual(['geometry', 'export']);
+	});
+
+	it('auto rebakes a watlas atlas when a clean model is cut below half', async () => {
+		const glb = await createCrestGlb({ segments: 24, name: 'crest-atlas' });
+		const { source, summary } = await parseGlb(glb);
+		expect(summary.triangleCount).toBeGreaterThan(1_000);
+		expect(summary.triangleCount).toBeLessThan(100_000);
+		const budget = Math.max(64, Math.floor(summary.triangleCount * 0.2));
+		const { complete, stages } = await bake(source, {
+			triangleBudget: budget,
+			topologyMode: 'auto',
+			mapSize: 48
+		});
+		expect(complete.topology).toBe('surface');
+		expect(complete.triangleCount).toBeGreaterThan(0);
+		expect(complete.triangleCount).toBeLessThanOrEqual(budget);
+		expect(stages).toEqual(['geometry', 'uv', 'tangents', 'maps', 'export']);
 	});
 
 	it('QEM simplify reduces an authored mesh', async () => {
@@ -222,7 +240,7 @@ describe('authored appearance', () => {
 
 		const { complete } = await bake(source, {
 			triangleBudget: 6000,
-			topologyMode: 'auto',
+			topologyMode: 'authored',
 			mapSize: 64
 		});
 		expect(complete.topology).toBe('authored');

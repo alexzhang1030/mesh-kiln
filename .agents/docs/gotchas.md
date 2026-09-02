@@ -6,7 +6,7 @@ Evaluate every low-poly result through topology continuity, material transfer, a
 
 Auto applies three appearance-preserving paths:
 
-- Clean indexed meshes below 100,000 triangles use authored QEM and retain source UVs and maps.
+- Clean indexed meshes below 100,000 triangles use authored QEM and retain source UVs and maps when the budget keeps at least half the triangles. A steeper cut (the default 6k on a 50k tower) rebuilds a watlas atlas instead — otherwise QEM only slides the original UVs and the paint turns into a mosaic.
 - Open reconstructions — unique positions, shared-edge ratio below 0.65, at least 10,000 triangles — voxel-remesh, unwrap a fresh watlas atlas, and bake PBR maps. `gaussian_mesh` vertex-color plants are this class: seam-welded QEM collapses the foliage into debris because almost every vertex sits on a border.
 - Dense connected sculpts at or above 100,000 triangles and triangle soup use seam-welded surface simplification, a fresh watlas atlas, and PBR map baking.
 - Explicit Voxel mode remains available for occupancy and dual-contour reconstruction.
@@ -15,7 +15,7 @@ Dilate and interior fill run only when occupancy encloses a real volume (interio
 
 UV seams and split normals create duplicate vertices at the same position. Treating those duplicates as disconnected topology can open seams and remove facial or limb features during aggressive reduction. [`weldPositionSeams()`](../../src/kernels/surface-simplify.ts) rejoins exact position duplicates, filters degenerate faces, recomputes normals, and feeds the continuous surface into QEM. The fresh atlas carries material attributes after this weld. Unlit sources keep `KHR_materials_unlit` on atlas export so vertex-color reconstructions do not pick up studio lighting.
 
-The routing policy lives in [`topology.ts`](../../src/kernels/topology.ts). [`topology.test.ts`](../../src/kernels/topology.test.ts) fixes the 100k threshold, triangle-soup heuristic, reconstruction-vs-tetrahedron split, Auto default, and explicit overrides. [`example-meshes.test.ts`](../../src/kernels/example-meshes.test.ts) pins Bear to the surface path. [`surface-simplify.test.ts`](../../src/kernels/surface-simplify.test.ts) covers UV-seam welding and the Bear 6k ceiling.
+The routing policy lives in [`topology.ts`](../../src/kernels/topology.ts). [`topology.test.ts`](../../src/kernels/topology.test.ts) fixes the 100k threshold, the 50% keep-ratio for authored maps, triangle-soup heuristic, reconstruction-vs-tetrahedron split, Auto default, and explicit overrides. [`example-meshes.test.ts`](../../src/kernels/example-meshes.test.ts) pins Bear to the surface path and Tower at 6k to atlas. [`surface-simplify.test.ts`](../../src/kernels/surface-simplify.test.ts) covers UV-seam welding and the Bear 6k ceiling.
 
 Authored QEM also treats the triangle budget as a ceiling. [`simplify.ts`](../../src/kernels/simplify.ts) progresses from border-locked low-error attempts through permissive and prune-permissive attempts, returning as soon as the target is reached. [`simplify.test.ts`](../../src/kernels/simplify.test.ts) pins the dense Bear ceiling.
 
