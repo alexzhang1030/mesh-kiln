@@ -1,6 +1,6 @@
 # Kiln
 
-Local-in-browser GLB triangle reducer (Nuxt SPA, pnpm@12). Drop a GLB, choose a triangle budget (or a surface error) and bake strategy, then download the result. Interactive geometry preview updates the mesh before the atlas bake. Import and bake stay on this machine.
+Local-in-browser GLB triangle reducer (Nuxt SPA, pnpm@12). Drop a GLB, choose a triangle budget (or a surface error) and bake strategy, then download the result. Geometry only updates the mesh before the atlas bake. Import and bake stay on this machine.
 
 - Live: https://mesh-kiln.alexzx.com
 - Source: https://github.com/alexzhang1030/mesh-kiln
