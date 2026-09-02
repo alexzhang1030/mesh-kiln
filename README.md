@@ -2,6 +2,9 @@
 
 Local-in-browser GLB triangle reducer (Nuxt SPA, pnpm@12). Drop a GLB, choose a triangle budget (or a surface error) and bake strategy, then download the result. Interactive geometry preview updates the mesh before the atlas bake. Import and bake stay on this machine.
 
+- Live: https://mesh-kiln.alexzx.com
+- Source: https://github.com/alexzhang1030/mesh-kiln
+
 Auto chooses the appearance-preserving path for each model:
 
 - Clean meshes below 100k triangles use authored QEM and retain source UVs and maps.
@@ -14,6 +17,8 @@ The atlas bake transfers base color, tangent-space normal, metallic/roughness, e
 ## Run
 
 ```bash
+git clone https://github.com/alexzhang1030/mesh-kiln.git
+cd mesh-kiln
 pnpm install
 pnpm dev
 ```
