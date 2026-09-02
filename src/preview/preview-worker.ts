@@ -27,10 +27,7 @@ import {
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-export type PreviewShading = 'lit' | 'unlit';
-
-export type PreviewInspect = 'result' | 'mesh' | 'baseColor' | 'normal' | 'roughness' | 'metallic';
+import { previewLook, type PreviewInspect, type PreviewLook, type PreviewShading } from './shading';
 
 export type PreviewCommand =
 	| {
@@ -276,16 +273,16 @@ function applyPreviewFlags(): void {
 	for (const pane of [sourcePane, bakedPane]) {
 		if (!pane) continue;
 		for (const overlay of pane.overlays) overlay.visible = wireframe;
-		if (pane.root) applyShading(pane.root, pane === bakedPane);
+		if (pane.root) applyShading(pane.root);
 	}
 }
 
-function applyShading(root: Object3D, baked: boolean): void {
-	const view = baked ? inspect : 'result';
+function applyShading(root: Object3D): void {
+	const look = previewLook(inspect, shading);
 	root.traverse((obj) => {
 		if (!(obj instanceof Mesh) || obj.userData.kilnHelper) return;
 		const original = originalMaterial(obj);
-		const next = mapMaterials(original, (material) => previewMaterial(material, view));
+		const next = mapMaterials(original, (material) => previewMaterial(material, look));
 		disposePreview(obj);
 		if (next !== original) obj.userData.kilnPreviewMat = next;
 		obj.material = next;
@@ -312,22 +309,39 @@ function mapMaterials(
 	return map(material);
 }
 
-function previewMaterial(material: Material, view: PreviewInspect): Material {
-	if (view === 'mesh') {
-		return new MeshStandardMaterial({ color: SURFACE_GRAY, metalness: 0.05, roughness: 0.55 });
+function previewMaterial(material: Material, look: PreviewLook): Material {
+	switch (look.kind) {
+		case 'mesh':
+			return new MeshStandardMaterial({ color: SURFACE_GRAY, metalness: 0.05, roughness: 0.55 });
+		case 'normal':
+			return basicFrom(material, 'normal');
+		case 'roughness':
+			return basicFrom(material, 'roughness');
+		case 'metallic':
+			return basicFrom(material, 'metallic');
+		case 'color':
+			return look.lit ? litColorFrom(material) : basicFrom(material, 'color');
+		case 'original':
+			return material;
+		default: {
+			const exhausted: never = look;
+			return exhausted;
+		}
 	}
-	if (view === 'baseColor' || (view === 'result' && shading === 'unlit')) {
-		return basicFrom(material, 'color');
-	}
-	if (view === 'normal') return basicFrom(material, 'normal');
-	if (view === 'roughness') return basicFrom(material, 'roughness');
-	if (view === 'metallic') return basicFrom(material, 'metallic');
-	return material;
+}
+
+function colorSources(material: Material): {
+	std: MeshStandardMaterial | null;
+	basic: MeshBasicMaterial | null;
+} {
+	return {
+		std: material instanceof MeshStandardMaterial ? material : null,
+		basic: material instanceof MeshBasicMaterial ? material : null
+	};
 }
 
 function basicFrom(material: Material, channel: 'color' | 'normal' | 'roughness' | 'metallic'): MeshBasicMaterial {
-	const std = material instanceof MeshStandardMaterial ? material : null;
-	const basic = material instanceof MeshBasicMaterial ? material : null;
+	const { std, basic } = colorSources(material);
 	let map = std?.map ?? basic?.map ?? null;
 	if (channel === 'normal') map = std?.normalMap ?? null;
 	else if (channel === 'roughness') map = std?.roughnessMap ?? std?.metalnessMap ?? null;
@@ -336,6 +350,17 @@ function basicFrom(material: Material, channel: 'color' | 'normal' | 'roughness'
 		map,
 		color: channel === 'color' ? (std?.color ?? basic?.color ?? new Color(0xffffff)) : new Color(0xffffff),
 		vertexColors: Boolean(std?.vertexColors || basic?.vertexColors)
+	});
+}
+
+function litColorFrom(material: Material): Material {
+	if (!(material instanceof MeshStandardMaterial)) return basicFrom(material, 'color');
+	return new MeshStandardMaterial({
+		map: material.map,
+		color: material.color,
+		vertexColors: material.vertexColors,
+		metalness: 0,
+		roughness: 0.55
 	});
 }
 

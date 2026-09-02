@@ -12,7 +12,7 @@ Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.
 | Interactive geometry preview | Drag the budget; geometry updates before atlas bake | Added |
 | Texture resolution 256–4096 | Atlas size | Yes |
 | Shading Lit \| Unlit | Preview lighting off | Yes. Mesh (untextured) lives under Maps |
-| Channel views | Result, mesh, base color, normal, roughness, metallic | Added on the baked pane |
+| Channel views | Result, mesh, base color, normal, roughness, metallic | Both compare panes. Lit/Unlit applies to Result and Base color |
 | Wireframe | Overlay | Yes |
 | Linked orbit cameras | Source left, result right | Yes |
 | PBR atlas | Base color, normal, MR, emissive | Yes (opacity/AO not in v1) |
