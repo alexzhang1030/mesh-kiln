@@ -311,7 +311,7 @@ function bakedHudClass(): string {
 						<option value="voxel">Voxel remesh · PBR atlas</option>
 						<option value="authored">Simplify authored mesh</option>
 					</select>
-					<small class="field-note">Auto voxel-remeshes open reconstructions, seam-welds dense sculpts, and keeps source maps on clean models.</small>
+					<small class="field-note">Auto voxel-remeshes open reconstructions, seam-welds dense sculpts, and keeps source maps on clean models unless the budget cuts more than half the triangles.</small>
 				</label>
 				<label class="field check">
 					<input

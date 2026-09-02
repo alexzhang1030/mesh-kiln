@@ -35,7 +35,10 @@ export async function runBake(
 	try {
 		assertNotCancelled(control);
 		const resolved = resolveBakeSettings(settings);
-		const topology = resolveTopologyForMesh(resolved.topologyMode, source);
+		const topology = resolveTopologyForMesh(resolved.topologyMode, source, {
+			triangleBudget: resolved.triangleBudget,
+			geometryTarget: resolved.geometryTarget
+		});
 		emit({ type: 'start', stage: 'geometry', topology });
 		emit({ type: 'progress', stage: 'geometry', value: 0, topology });
 		const pass = await runGeometry(

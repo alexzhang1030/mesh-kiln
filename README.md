@@ -7,7 +7,7 @@ Local-in-browser GLB triangle reducer (Nuxt SPA, pnpm@12). Drop a GLB, choose a 
 
 Auto chooses the appearance-preserving path for each model:
 
-- Clean meshes below 100k triangles use authored QEM and retain source UVs and maps.
+- Clean meshes below 100k triangles use authored QEM and retain source UVs and maps when the budget keeps at least half the triangles. A steeper cut unwraps a fresh atlas and bakes PBR maps.
 - Open reconstructions (gaussian_mesh, scans: unique positions, few shared edges, ≥10k triangles) voxel-remesh, unwrap a fresh watlas atlas, and bake PBR maps. Unlit vertex-color sources stay unlit.
 - Dense connected sculpts and triangle soup weld exact position seams, simplify the continuous surface, unwrap a fresh watlas atlas, and bake PBR maps.
 - Explicit Voxel mode rebuilds the surface through occupancy and dual contouring before atlas bake.

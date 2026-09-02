@@ -3,6 +3,7 @@ import { createCrestGeometry } from './fixture';
 import { createTorusGeometry } from './example-meshes';
 import { DEFAULT_BAKE_SETTINGS } from './types';
 import {
+	AUTHORED_KEEP_RATIO,
 	DENSE_SCULPT_TRIANGLES,
 	isFragmentedSurface,
 	isTriangleSoup,
@@ -21,6 +22,26 @@ describe('topology auto', () => {
 		expect(resolveTopologyMode('auto', 50_000, false)).toBe('authored');
 		expect(resolveTopologyMode('auto', 6_400, false)).toBe('authored');
 		expect(resolveTopologyMode('auto', DENSE_SCULPT_TRIANGLES - 1, false)).toBe('authored');
+	});
+
+	it('keeps authored QEM when Auto only trims a clean mesh', () => {
+		expect(resolveTopologyMode('auto', 50_000, false, false, { triangleBudget: 40_000 })).toBe('authored');
+		expect(AUTHORED_KEEP_RATIO).toBe(0.5);
+	});
+
+	it('rebakes a watlas atlas when Auto drops a clean mesh below half its triangles', () => {
+		expect(resolveTopologyMode('auto', 50_000, false, false, { triangleBudget: 6_000 })).toBe('surface');
+		expect(resolveTopologyMode('auto', 50_000, false, false, { triangleBudget: 24_999 })).toBe('surface');
+		expect(resolveTopologyMode('auto', 50_000, false, false, { triangleBudget: 25_000 })).toBe('authored');
+	});
+
+	it('does not use the keep-ratio when targeting surface error', () => {
+		expect(
+			resolveTopologyMode('auto', 50_000, false, false, {
+				triangleBudget: 6_000,
+				geometryTarget: 'error'
+			})
+		).toBe('authored');
 	});
 
 	it('routes dense sculpts and triangle soup through seam-welded surface bake', () => {
