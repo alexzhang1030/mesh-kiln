@@ -206,7 +206,7 @@ function reductionLabel(): string | null {
 
 function topologyResultLabel(topology: TopologyChoice): string {
 	if (!snapshot.atlasBaked && topology !== 'authored') {
-		return `${topologyChoiceLabel(topology)} · geometry preview`;
+		return `${topologyChoiceLabel(topology)} · geometry only`;
 	}
 	const maps = topology === 'authored' ? 'source maps' : 'PBR atlas';
 	return `${topologyChoiceLabel(topology)} + ${maps}`;
@@ -319,7 +319,7 @@ function bakedHudClass(): string {
 						:checked="snapshot.interactiveGeometry"
 						@change="setInteractive"
 					/>
-					<span>Interactive geometry preview</span>
+					<span>Geometry only</span>
 				</label>
 				<label class="field">
 					<span>Texture atlas</span>

@@ -9,7 +9,7 @@ Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.
 | Triangle budget | Ceiling on output triangles | Yes |
 | Target: triangle count \| surface error | Count ceiling, or meshoptimizer relative error and let the count fall out | Surface error added |
 | Topology: voxel remesh \| simplify authored | Rebuild vs keep authored connectivity | Auto / Voxel / Authored |
-| Interactive geometry preview | Drag the budget; geometry updates before atlas bake | Added |
+| Interactive geometry preview | Drag the budget; geometry updates before atlas bake | Geometry only |
 | Texture resolution 256–4096 | Atlas size | Yes |
 | Shading Lit \| Unlit | Preview lighting off | Yes. Mesh (untextured) lives under Maps |
 | Channel views | Result, mesh, base color, normal, roughness, metallic | Both compare panes. Lit/Unlit applies to Result and Base color |

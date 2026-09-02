@@ -125,7 +125,7 @@ The shape language stays softly engineered: compact radii, one-pixel borders, an
 
 - **Drop zone:** full-width bordered target with direct title/copy hierarchy; hover and drag states use ember border and wash.
 - **Example grid:** two equal columns of left-aligned ghost buttons; active selection uses the ember state.
-- **Settings:** bordered fieldset with copper legend, stacked labels, and full-width dark controls. Expose target (triangle count or surface error), topology, interactive geometry preview, and atlas size; show voxel detail for the explicit Voxel path.
+- **Settings:** bordered fieldset with copper legend, stacked labels, and full-width dark controls. Expose target (triangle count or surface error), topology, geometry only, and atlas size; show voxel detail for the explicit Voxel path.
 - **Actions:** Ember Bake, neutral Cancel, and copper Download establish clear operational priority. Disabled controls use 40% opacity.
 - **Compare stage:** source stays on the left and baked output stays on the right on desktop. HUDs sit at the upper outer corners to preserve the central silhouette.
 - **HUD:** uppercase kicker plus large triangle count; result state colors communicate reduced, larger, or equal output.
