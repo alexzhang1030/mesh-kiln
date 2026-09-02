@@ -1,6 +1,6 @@
 # Needle Mesh Baker feature map
 
-Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.tools/docs/products/needle-mesh-baker.html) (build `7a4eec2` on [mesh-baker.needle.tools](https://mesh-baker.needle.tools/)) and the live workbench. Kiln v1 stays local-GLB; Needle Cloud, accounts, impostors, AO, OBJ/FBX, and generative models stay out of scope.
+Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.tools/docs/products/needle-mesh-baker.html) (build `7a4eec2` on [mesh-baker.needle.tools](https://mesh-baker.needle.tools/)) and the live workbench. Kiln v1 stays local-GLB; impostors, AO, OBJ/FBX, and generative models stay out of scope.
 
 ## Default workbench (ship in Kiln)
 
@@ -21,7 +21,7 @@ Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.
 
 | Needle | Why it stays out |
 | --- | --- |
-| OBJ / FBX / ZIP / Cloud import | README v1: GLB only |
+| OBJ / FBX / ZIP import | README v1: GLB only |
 | Optional AO map | README v1 |
 | GPU bake | Kiln is CPU meshopt + watlas |
 | Impostors, splat→mesh, image/text generate | README v1; Needle docs also mark impostors / splats / quads / vertex-color PBR as coming soon |
