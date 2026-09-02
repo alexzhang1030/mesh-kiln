@@ -319,6 +319,8 @@ function previewMaterial(material: Material, look: PreviewLook): Material {
 			return basicFrom(material, 'roughness');
 		case 'metallic':
 			return basicFrom(material, 'metallic');
+		case 'occlusion':
+			return basicFrom(material, 'occlusion');
 		case 'color':
 			return look.lit ? litColorFrom(material) : basicFrom(material, 'color');
 		case 'original':
@@ -340,12 +342,16 @@ function colorSources(material: Material): {
 	};
 }
 
-function basicFrom(material: Material, channel: 'color' | 'normal' | 'roughness' | 'metallic'): MeshBasicMaterial {
+function basicFrom(
+	material: Material,
+	channel: 'color' | 'normal' | 'roughness' | 'metallic' | 'occlusion'
+): MeshBasicMaterial {
 	const { std, basic } = colorSources(material);
 	let map = std?.map ?? basic?.map ?? null;
 	if (channel === 'normal') map = std?.normalMap ?? null;
 	else if (channel === 'roughness') map = std?.roughnessMap ?? std?.metalnessMap ?? null;
 	else if (channel === 'metallic') map = std?.metalnessMap ?? std?.roughnessMap ?? null;
+	else if (channel === 'occlusion') map = std?.aoMap ?? std?.metalnessMap ?? std?.roughnessMap ?? null;
 	return new MeshBasicMaterial({
 		map,
 		color: channel === 'color' ? (std?.color ?? basic?.color ?? new Color(0xffffff)) : new Color(0xffffff),

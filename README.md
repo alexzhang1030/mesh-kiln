@@ -12,7 +12,7 @@ Auto chooses the appearance-preserving path for each model:
 - Dense connected sculpts and triangle soup weld exact position seams, simplify the continuous surface, unwrap a fresh watlas atlas, and bake PBR maps.
 - Explicit Voxel mode rebuilds the surface through occupancy and dual contouring before atlas bake.
 
-The atlas bake transfers base color, tangent-space normal, metallic/roughness, emissive, and vertex color. Source sampling and exported UVs follow the glTF upper-left texture origin.
+The atlas bake transfers base color (with opacity), tangent-space normal, metallic/roughness, occlusion, emissive, and vertex color. Occlusion is packed in the ORM red channel. Source sampling and exported UVs follow the glTF upper-left texture origin.
 
 ## Run
 
@@ -66,4 +66,4 @@ Pinned packages: `meshoptimizer@1.2.0`, `watlas@1.0.1`.
 
 ## Out of scope (v1)
 
-Impostors, splats, generative models, AO maps, OBJ/FBX import.
+Impostors, splats, generative models, OBJ/FBX import.

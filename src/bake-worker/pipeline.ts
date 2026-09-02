@@ -6,7 +6,7 @@ import { resolveTopologyForMesh, type TopologyChoice } from '../kernels/topology
 import type { BakeSettings, BakeStage, MeshGeometry, SourceMesh } from '../kernels/types';
 import { resolveBakeSettings, triangleCountOf } from '../kernels/types';
 import { unwrap } from '../kernels/unwrap';
-import { sourceIsUnlit, writeAuthoredGlb, writeGeometryGlb, writeGlb } from '../kernels/write-glb';
+import { atlasAlphaMode, sourceIsUnlit, writeAuthoredGlb, writeGeometryGlb, writeGlb } from '../kernels/write-glb';
 import { bakeMaps } from './map-bake';
 
 export type BakeProgressFn = (event: BakeProgressEvent) => void;
@@ -106,7 +106,10 @@ export async function runBake(
 
 				emit({ type: 'start', stage: 'export', topology });
 				emit({ type: 'progress', stage: 'export', value: 0, topology });
-				const glb = await writeGlb(withTangents, maps, { unlit: sourceIsUnlit(source) });
+				const glb = await writeGlb(withTangents, maps, {
+					unlit: sourceIsUnlit(source),
+					...atlasAlphaMode(source)
+				});
 				assertNotCancelled(control);
 				emit({ type: 'progress', stage: 'export', value: 1, topology });
 				emit({

@@ -412,6 +412,7 @@ function bakedHudClass(): string {
 						<option value="normal">Normal</option>
 						<option value="roughness">Roughness</option>
 						<option value="metallic">Metallic</option>
+						<option value="occlusion">Occlusion</option>
 					</select>
 				</label>
 				<label>

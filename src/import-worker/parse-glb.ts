@@ -54,6 +54,8 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<{ source: SourceMes
 			metallicFactor: material.getMetallicFactor(),
 			roughnessFactor: material.getRoughnessFactor(),
 			metallicRoughness: await textureImage(material.getMetallicRoughnessTexture()),
+			occlusion: await textureImage(material.getOcclusionTexture()),
+			occlusionStrength: material.getOcclusionStrength(),
 			emissiveFactor: [emissive[0] ?? 0, emissive[1] ?? 0, emissive[2] ?? 0],
 			emissive: await textureImage(material.getEmissiveTexture()),
 			alphaMode: material.getAlphaMode(),

@@ -1,6 +1,6 @@
 # Needle Mesh Baker feature map
 
-Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.tools/docs/products/needle-mesh-baker.html) (build `7a4eec2` on [mesh-baker.needle.tools](https://mesh-baker.needle.tools/)) and the live workbench. Kiln v1 stays local-GLB; impostors, AO, OBJ/FBX, and generative models stay out of scope.
+Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.tools/docs/products/needle-mesh-baker.html) (build `7a4eec2` on [mesh-baker.needle.tools](https://mesh-baker.needle.tools/)) and the live workbench. Kiln v1 stays local-GLB; impostors, OBJ/FBX, and generative models stay out of scope.
 
 ## Default workbench (ship in Kiln)
 
@@ -12,17 +12,16 @@ Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.
 | Interactive geometry preview | Drag the budget; geometry updates before atlas bake | Geometry only |
 | Texture resolution 256–4096 | Atlas size | Yes |
 | Shading Lit \| Unlit | Preview lighting off | Yes. Mesh (untextured) lives under Maps |
-| Channel views | Result, mesh, base color, normal, roughness, metallic | Both compare panes. Lit/Unlit applies to Result and Base color |
+| Channel views | Result, mesh, base color, normal, roughness, metallic | Both compare panes. Lit/Unlit applies to Result and Base color. Occlusion added. |
 | Wireframe | Overlay | Yes |
 | Linked orbit cameras | Source left, result right | Yes |
-| PBR atlas | Base color, normal, MR, emissive | Yes (opacity/AO not in v1) |
+| PBR atlas | Base color, normal, MR, emissive | Yes, plus opacity and AO packed in ORM |
 
 ## Documented, not in Kiln v1
 
 | Needle | Why it stays out |
 | --- | --- |
 | OBJ / FBX / ZIP import | README v1: GLB only |
-| Optional AO map | README v1 |
 | GPU bake | Kiln is CPU meshopt + watlas |
 | Impostors, splat→mesh, image/text generate | README v1; Needle docs also mark impostors / splats / quads / vertex-color PBR as coming soon |
 | Hard-edge / small-part / silhouette sliders | Extra options; Auto already lock-borders then permissive |
