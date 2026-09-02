@@ -24,7 +24,7 @@ describe('previewLook', () => {
 	});
 
 	it('keeps map debug channels unlit so Lit cannot wash them out', () => {
-		const channels: PreviewInspect[] = ['normal', 'roughness', 'metallic'];
+		const channels: PreviewInspect[] = ['normal', 'roughness', 'metallic', 'occlusion'];
 		const modes: PreviewShading[] = ['lit', 'unlit'];
 		for (const channel of channels) {
 			for (const shading of modes) {

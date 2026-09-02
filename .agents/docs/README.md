@@ -10,7 +10,7 @@ These records are unstamped drafts. They capture the current repository state; a
 | UV, projection, source maps, and normal transfer | [Bake quality gotchas — material transfer](gotchas.md#keep-the-texture-coordinate-chain-consistent) | Texture orientation, geometric hit scoring, and tangent bases form one coupled transfer contract. |
 | Geometry and browser acceptance | [Bake quality gotchas — acceptance](gotchas.md#run-reference-relative-and-visual-gates) | Triangle count, surface metrics, and live Lit/Unlit on both panes (Result and Base color) are separate gates. |
 | UI styling, layout, and component treatment | [DESIGN.md](DESIGN.md) | Warm workshop palette, compact control board, and dominant side-by-side preview stage. |
-| Needle Mesh Baker feature parity | [needle-parity.md](needle-parity.md) | Default workbench: budget or surface error, geometry only, Unlit, channel views. AO/impostors stay out. |
+| Needle Mesh Baker feature parity | [needle-parity.md](needle-parity.md) | Default workbench: budget or surface error, geometry only, Unlit, channel views, opacity, ORM occlusion. Impostors stay out. |
 
 ## Durable evidence
 

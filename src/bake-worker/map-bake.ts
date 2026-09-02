@@ -3,6 +3,7 @@ import {
 	closestPointToPoint,
 	interpolateAttribute,
 	raycastAll,
+	raycastFirst,
 	type MeshBvh,
 	type RayHit
 } from '../kernels/bvh';
@@ -42,6 +43,18 @@ const vertexColorScratch: number[] = [1, 1, 1];
 const sourceTangentScratch: number[] = [1, 0, 0, 1];
 const sourceTangentVector: Vec3 = [1, 0, 0];
 const sourceBitangentVector: Vec3 = [0, 1, 0];
+const aoTangent: Vec3 = [1, 0, 0];
+const aoBitangent: Vec3 = [0, 1, 0];
+const aoOrigin: Vec3 = [0, 0, 0];
+const aoDirection: Vec3 = [0, 0, 1];
+const AO_TANGENT_DIRS: ReadonlyArray<readonly [number, number, number]> = [
+	[0, 0, 1],
+	[0.577, 0.577, 0.577],
+	[-0.577, 0.577, 0.577],
+	[0.577, -0.577, 0.577],
+	[-0.577, -0.577, 0.577],
+	[0, 0.707, 0.707]
+];
 
 export async function bakeMaps(
 	high: SourceMesh,
@@ -154,6 +167,7 @@ export async function bakeMaps(
 			);
 			const color = shadeHit(high, sample);
 			const mr = shadeMetallicRoughness(high, sample);
+			const occlusion = shadeOcclusion(high, sample, pos, tree, maxDistance);
 			shadeNormal(high, sample, sourceTangents, worldN);
 			ts[0] = vec3Dot(worldN, tan);
 			ts[1] = vec3Dot(worldN, bitan);
@@ -164,12 +178,12 @@ export async function bakeMaps(
 			baseColor.rgba[pix] = color[0];
 			baseColor.rgba[pix + 1] = color[1];
 			baseColor.rgba[pix + 2] = color[2];
-			baseColor.rgba[pix + 3] = 255;
+			baseColor.rgba[pix + 3] = color[3];
 			normal.rgba[pix] = encoded[0];
 			normal.rgba[pix + 1] = encoded[1];
 			normal.rgba[pix + 2] = encoded[2];
 			normal.rgba[pix + 3] = 255;
-			metallicRoughness.rgba[pix] = 255;
+			metallicRoughness.rgba[pix] = occlusion;
 			metallicRoughness.rgba[pix + 1] = mr[0];
 			metallicRoughness.rgba[pix + 2] = mr[1];
 			metallicRoughness.rgba[pix + 3] = 255;
@@ -301,17 +315,19 @@ export function projectToSource(
 	};
 }
 
-export function shadeHit(high: SourceMesh, sample: HighSample): [number, number, number] {
+export function shadeHit(high: SourceMesh, sample: HighSample): [number, number, number, number] {
 	const material = materialOf(high, sample.faceIndex);
 	const factor = material?.baseColorFactor ?? [0.72, 0.72, 0.7, 1];
 	let r = factor[0];
 	let g = factor[1];
 	let b = factor[2];
+	let a = factor[3] ?? 1;
 	if (material?.baseColor && sample.uv) {
 		const texel = sampleBilinear(material.baseColor, sample.uv[0], sample.uv[1], false);
 		r *= texel[0] / 255;
 		g *= texel[1] / 255;
 		b *= texel[2] / 255;
+		a *= (texel[3] ?? 255) / 255;
 	}
 	if (high.colors) {
 		interpolateAttribute(high.colors, high.indices, sample.faceIndex, sample.barycentric, 3, vertexColorScratch);
@@ -324,7 +340,12 @@ export function shadeHit(high: SourceMesh, sample: HighSample): [number, number,
 		g = linearToSrgb(clamp01(g));
 		b = linearToSrgb(clamp01(b));
 	}
-	return [Math.round(clamp01(r) * 255), Math.round(clamp01(g) * 255), Math.round(clamp01(b) * 255)];
+	return [
+		Math.round(clamp01(r) * 255),
+		Math.round(clamp01(g) * 255),
+		Math.round(clamp01(b) * 255),
+		Math.round(clamp01(a) * 255)
+	];
 }
 
 export function shadeMetallicRoughness(high: SourceMesh, sample: HighSample): [number, number] {
@@ -337,6 +358,51 @@ export function shadeMetallicRoughness(high: SourceMesh, sample: HighSample): [n
 		metallic *= (texel[2] ?? 0) / 255;
 	}
 	return [Math.round(clamp01(roughness) * 255), Math.round(clamp01(metallic) * 255)];
+}
+
+export function shadeOcclusion(
+	high: SourceMesh,
+	sample: HighSample,
+	pos?: Vec3,
+	tree?: MeshBvh | null,
+	maxDistance = 0
+): number {
+	const material = materialOf(high, sample.faceIndex);
+	let ao = 1;
+	if (material?.occlusion && sample.uv) {
+		const texel = sampleBilinear(material.occlusion, sample.uv[0], sample.uv[1], false);
+		const sampled = (texel[0] ?? 255) / 255;
+		const strength = material.occlusionStrength ?? 1;
+		ao *= 1 - strength * (1 - sampled);
+	} else if (tree && pos && maxDistance > 0) {
+		ao *= geometricAo(tree, pos, sample.normal, maxDistance);
+	}
+	return Math.round(clamp01(ao) * 255);
+}
+
+function geometricAo(tree: MeshBvh, pos: Vec3, nrm: Vec3, maxDistance: number): number {
+	if (Math.abs(nrm[1]) < 0.9) {
+		aoTangent[0] = nrm[2];
+		aoTangent[1] = 0;
+		aoTangent[2] = -nrm[0];
+	} else {
+		aoTangent[0] = 1;
+		aoTangent[1] = 0;
+		aoTangent[2] = 0;
+	}
+	vec3Normalize(aoTangent, aoTangent);
+	vec3Normalize(vec3Cross(nrm, aoTangent, aoBitangent), aoBitangent);
+	const bias = Math.max(1e-5, maxDistance * 0.02);
+	vec3Add(pos, vec3Scale(nrm, bias, aoOrigin), aoOrigin);
+	let visible = 0;
+	for (const dir of AO_TANGENT_DIRS) {
+		aoDirection[0] = aoTangent[0] * dir[0] + aoBitangent[0] * dir[1] + nrm[0] * dir[2];
+		aoDirection[1] = aoTangent[1] * dir[0] + aoBitangent[1] * dir[1] + nrm[1] * dir[2];
+		aoDirection[2] = aoTangent[2] * dir[0] + aoBitangent[2] * dir[1] + nrm[2] * dir[2];
+		vec3Normalize(aoDirection, aoDirection);
+		if (!raycastFirst(tree, aoOrigin, aoDirection, maxDistance)) visible += 1;
+	}
+	return visible / AO_TANGENT_DIRS.length;
 }
 
 export function shadeNormal(

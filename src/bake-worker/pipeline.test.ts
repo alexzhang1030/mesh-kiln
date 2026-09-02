@@ -279,6 +279,69 @@ describe('authored appearance', () => {
 		expect(baked.materials[0]?.unlit).toBe(true);
 	});
 
+	it('voxel atlas keeps albedo alpha and packs occlusion into the ORM map', async () => {
+		const albedo = createImage(4, 4, [220, 20, 20, 80]);
+		const occlusion = createImage(4, 4, [48, 0, 0, 255]);
+		const source: SourceMesh = {
+			positions: new Float32Array([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0]),
+			indices: new Uint32Array([0, 1, 2, 2, 1, 3]),
+			normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]),
+			uvs: new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]),
+			colors: null,
+			triangleMaterials: new Uint16Array([0, 0]),
+			materials: [
+				{
+					baseColorFactor: [1, 1, 1, 1],
+					baseColor: albedo,
+					metallicFactor: 0,
+					roughnessFactor: 1,
+					occlusion,
+					occlusionStrength: 1,
+					emissiveFactor: [0, 0, 0],
+					alphaMode: 'BLEND'
+				}
+			]
+		};
+		const { complete } = await bake(source, {
+			triangleBudget: 64,
+			topologyMode: 'voxel',
+			mapSize: 32,
+			voxelResolution: 50
+		});
+		const document = await readGlbDocument(new Uint8Array(complete.glb));
+		const material = document.getRoot().listMeshes()[0]?.listPrimitives()[0]?.getMaterial();
+		expect(material?.getAlphaMode()).toBe('BLEND');
+		expect(material?.getOcclusionTexture()).toBe(material?.getMetallicRoughnessTexture());
+		const { source: baked } = await parseGlb(complete.glb);
+		expect(baked.materials[0]?.alphaMode).toBe('BLEND');
+		expect(baked.materials[0]?.occlusion).toBeTruthy();
+		const occ = sampleOcclusion(baked, [0, 0, 0]);
+		expect(occ).toBeGreaterThan(30);
+		expect(occ).toBeLessThan(80);
+		const alpha = sampleAlpha(baked, [0, 0, 0]);
+		expect(alpha).toBeGreaterThan(60);
+		expect(alpha).toBeLessThan(110);
+	});
+
+	it('authored export copies occlusion texture and strength', async () => {
+		const glb = await createCrestGlb({ segments: 12, name: 'crest-occlusion' });
+		const { source } = await parseGlb(glb);
+		const material = source.materials[0];
+		expect(material).toBeTruthy();
+		if (!material) return;
+		material.occlusion = createImage(8, 8, [60, 0, 0, 255]);
+		material.occlusionStrength = 0.5;
+		const { complete } = await bake(source, {
+			triangleBudget: 180,
+			topologyMode: 'authored',
+			mapSize: 48
+		});
+		const { source: baked } = await parseGlb(complete.glb);
+		expect(baked.materials[0]?.occlusion).toBeTruthy();
+		expect(baked.materials[0]?.occlusionStrength).toBeCloseTo(0.5, 5);
+		expect(baked.materials[0]?.occlusion?.rgba[0]).toBe(60);
+	});
+
 	it('keeps KHR_materials_unlit on a vertex-color atlas bake', async () => {
 		const source: SourceMesh = {
 			positions: new Float32Array([-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0]),
@@ -338,6 +401,37 @@ function closestUv(mesh: SourceMesh, point: [number, number, number]): [number, 
 	const hit = closestPointToPoint(tree, point);
 	if (!hit?.uv) throw new Error(`No UV near ${point.join(',')}`);
 	return hit.uv;
+}
+
+function sampleOcclusion(mesh: SourceMesh, point: [number, number, number]): number {
+	const texel = sampleMap(mesh, point, (material, uv) => {
+		if (!material.occlusion) throw new Error('Missing occlusion.');
+		return sampleBilinear(material.occlusion, uv[0], uv[1], true)[0] ?? 255;
+	});
+	const strength = mesh.materials[0]?.occlusionStrength ?? 1;
+	return Math.round((1 - strength * (1 - texel / 255)) * 255);
+}
+
+function sampleAlpha(mesh: SourceMesh, point: [number, number, number]): number {
+	return sampleMap(mesh, point, (material, uv) => {
+		if (!material.baseColor) throw new Error('Missing albedo.');
+		const texel = sampleBilinear(material.baseColor, uv[0], uv[1], true);
+		return Math.round(((texel[3] ?? 255) / 255) * (material.baseColorFactor[3] ?? 1) * 255);
+	});
+}
+
+function sampleMap<T>(
+	mesh: SourceMesh,
+	point: [number, number, number],
+	read: (material: NonNullable<SourceMesh['materials'][number]>, uv: [number, number]) => T
+): T {
+	if (!mesh.uvs) throw new Error('Mesh has no UVs.');
+	const tree = buildBvh(mesh.positions, mesh.indices, mesh.normals, mesh.uvs);
+	const hit = closestPointToPoint(tree, point);
+	if (!hit?.uv) throw new Error(`No surface near ${point.join(',')}`);
+	const material = mesh.materials[mesh.triangleMaterials[hit.faceIndex] ?? 0];
+	if (!material) throw new Error('Missing material.');
+	return read(material, hit.uv);
 }
 
 function sampleAlbedo(mesh: SourceMesh, point: [number, number, number]): [number, number, number] {

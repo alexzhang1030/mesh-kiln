@@ -14,10 +14,35 @@ export type BakedMaps = {
 
 export type WriteGlbOptions = {
 	unlit?: boolean;
+	alphaMode?: AlphaMode;
+	alphaCutoff?: number;
 };
 
 export function sourceIsUnlit(source: SourceMesh): boolean {
 	return source.materials.length > 0 && source.materials.every((material) => material.unlit === true);
+}
+
+export function atlasAlphaMode(source: SourceMesh): { alphaMode: AlphaMode; alphaCutoff?: number } {
+	let mask = false;
+	let cutoff: number | undefined;
+	for (const material of source.materials) {
+		if (material.alphaMode === 'BLEND' || (material.baseColorFactor[3] ?? 1) < 0.999) {
+			return { alphaMode: 'BLEND' };
+		}
+		if (material.alphaMode === 'MASK') {
+			mask = true;
+			cutoff = material.alphaCutoff ?? cutoff ?? 0.5;
+		}
+		if (material.baseColor && textureHasAlpha(material.baseColor)) return { alphaMode: 'BLEND' };
+	}
+	return mask ? { alphaMode: 'MASK', alphaCutoff: cutoff } : { alphaMode: 'OPAQUE' };
+}
+
+function textureHasAlpha(image: RgbaImage): boolean {
+	for (let i = 3; i < image.rgba.length; i += 4) {
+		if ((image.rgba[i] ?? 255) < 250) return true;
+	}
+	return false;
 }
 
 export async function writeGeometryGlb(mesh: MeshGeometry): Promise<ArrayBuffer> {
@@ -110,7 +135,10 @@ export async function writeGlb(
 		.setRoughnessFactor(1)
 		.setBaseColorTexture(baseColorTexture)
 		.setNormalTexture(normalTexture)
-		.setMetallicRoughnessTexture(metallicRoughnessTexture);
+		.setMetallicRoughnessTexture(metallicRoughnessTexture)
+		.setOcclusionTexture(metallicRoughnessTexture)
+		.setOcclusionStrength(1);
+	applyAlphaMode(material, options.alphaMode, options.alphaCutoff);
 
 	if (maps.emissive) {
 		material
@@ -240,6 +268,11 @@ function createCopiedMaterial(
 	}
 	if (source.metallicRoughness) {
 		material.setMetallicRoughnessTexture(copiedTexture(document, cache, 'metallicRoughness', source.metallicRoughness));
+	}
+	if (source.occlusion) {
+		material
+			.setOcclusionTexture(copiedTexture(document, cache, 'occlusion', source.occlusion))
+			.setOcclusionStrength(source.occlusionStrength ?? 1);
 	}
 	if (source.emissive) material.setEmissiveTexture(copiedTexture(document, cache, 'emissive', source.emissive));
 	if (source.alpha && !source.baseColor) {

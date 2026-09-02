@@ -1,6 +1,6 @@
 export type PreviewShading = 'lit' | 'unlit';
 
-export type PreviewInspect = 'result' | 'mesh' | 'baseColor' | 'normal' | 'roughness' | 'metallic';
+export type PreviewInspect = 'result' | 'mesh' | 'baseColor' | 'normal' | 'roughness' | 'metallic' | 'occlusion';
 
 export type PreviewLook =
 	| { kind: 'original' }
@@ -8,7 +8,8 @@ export type PreviewLook =
 	| { kind: 'color'; lit: boolean }
 	| { kind: 'normal' }
 	| { kind: 'roughness' }
-	| { kind: 'metallic' };
+	| { kind: 'metallic' }
+	| { kind: 'occlusion' };
 
 export function previewLook(inspect: PreviewInspect, shading: PreviewShading): PreviewLook {
 	switch (inspect) {
@@ -20,6 +21,8 @@ export function previewLook(inspect: PreviewInspect, shading: PreviewShading): P
 			return { kind: 'roughness' };
 		case 'metallic':
 			return { kind: 'metallic' };
+		case 'occlusion':
+			return { kind: 'occlusion' };
 		case 'baseColor':
 			return { kind: 'color', lit: shading === 'lit' };
 		case 'result':

@@ -29,6 +29,8 @@ export type SourceMaterial = {
 	metallicFactor: number;
 	roughnessFactor: number;
 	metallicRoughness?: RgbaImage;
+	occlusion?: RgbaImage;
+	occlusionStrength?: number;
 	emissiveFactor: [number, number, number];
 	emissive?: RgbaImage;
 	alphaMode?: AlphaMode;

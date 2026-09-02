@@ -11,7 +11,8 @@ import {
 	resolvedRoughness,
 	shadeHit,
 	shadeNormal,
-	shadeMetallicRoughness
+	shadeMetallicRoughness,
+	shadeOcclusion
 } from './map-bake';
 import { computeSourceTangents } from '../kernels/source-tangents';
 
@@ -360,3 +361,80 @@ describe('vertex color', () => {
 		expect(color[2]).toBe(color[0]);
 	});
 });
+
+describe('opacity', () => {
+	it('writes source albedo alpha onto the hit', () => {
+		const albedo = createImage(4, 4, [20, 180, 40, 90]);
+		const color = shadeHit(oneTriangle({ baseColor: albedo, baseColorFactor: [1, 1, 1, 1] }), {
+			kind: 'closest',
+			normal: [0, 0, 1],
+			uv: [0.25, 0.25],
+			faceIndex: 0,
+			barycentric: [1, 0, 0]
+		});
+		expect(color[3]).toBeGreaterThan(80);
+		expect(color[3]).toBeLessThan(100);
+	});
+
+	it('multiplies baseColorFactor alpha when there is no albedo map', () => {
+		const color = shadeHit(oneTriangle({ baseColorFactor: [1, 1, 1, 0.5] }), {
+			kind: 'closest',
+			normal: [0, 0, 1],
+			uv: null,
+			faceIndex: 0,
+			barycentric: [1, 0, 0]
+		});
+		expect(color[3]).toBe(128);
+	});
+});
+
+describe('occlusion', () => {
+	it('samples the occlusion R channel and applies strength', () => {
+		const occlusion = createImage(4, 4, [40, 0, 0, 255]);
+		const value = shadeOcclusion(
+			oneTriangle({ occlusion, occlusionStrength: 1 }),
+			{
+				kind: 'closest',
+				normal: [0, 0, 1],
+				uv: [0.25, 0.25],
+				faceIndex: 0,
+				barycentric: [1, 0, 0]
+			}
+		);
+		expect(value).toBeGreaterThan(30);
+		expect(value).toBeLessThan(50);
+	});
+
+	it('defaults to unoccluded without a map', () => {
+		const value = shadeOcclusion(oneTriangle({}), {
+			kind: 'closest',
+			normal: [0, 0, 1],
+			uv: null,
+			faceIndex: 0,
+			barycentric: [1, 0, 0]
+		});
+		expect(value).toBe(255);
+	});
+});
+
+function oneTriangle(
+	material: Partial<SourceMaterial> & { occlusion?: SourceMaterial['occlusion'] }
+): SourceMesh {
+	return {
+		positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+		indices: new Uint32Array([0, 1, 2]),
+		normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+		uvs: new Float32Array([0, 0, 1, 0, 0, 1]),
+		colors: null,
+		triangleMaterials: new Uint16Array([0]),
+		materials: [
+			{
+				baseColorFactor: [1, 1, 1, 1],
+				metallicFactor: 0,
+				roughnessFactor: 1,
+				emissiveFactor: [0, 0, 0],
+				...material
+			}
+		]
+	};
+}

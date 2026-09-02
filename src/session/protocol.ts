@@ -47,6 +47,7 @@ export function sourceTransferList(source: SourceMesh): Transferable[] {
 		if (material.normal) list.push(material.normal.rgba.buffer);
 		if (material.alpha) list.push(material.alpha.rgba.buffer);
 		if (material.metallicRoughness) list.push(material.metallicRoughness.rgba.buffer);
+		if (material.occlusion) list.push(material.occlusion.rgba.buffer);
 		if (material.emissive) list.push(material.emissive.rgba.buffer);
 	}
 	return list;
@@ -69,6 +70,8 @@ export function cloneSource(source: SourceMesh): SourceMesh {
 			metallicFactor: material.metallicFactor,
 			roughnessFactor: material.roughnessFactor,
 			metallicRoughness: cloneImage(material.metallicRoughness),
+			occlusion: cloneImage(material.occlusion),
+			occlusionStrength: material.occlusionStrength,
 			emissiveFactor: [...material.emissiveFactor],
 			emissive: cloneImage(material.emissive),
 			alphaMode: material.alphaMode,

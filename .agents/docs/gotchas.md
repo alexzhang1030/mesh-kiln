@@ -33,7 +33,7 @@ A vertical flip at one boundary rotates the sampled material relationship and ca
 
 Source projection chooses the smallest geometric distance. Source-island identity resolves equal-distance ties. An absolute island preference can select a farther surface and transfer unrelated eye, scarf, or body texels.
 
-Keep the selected source `faceIndex`, barycentric coordinates, and UV together through shading. That tuple identifies the material and drives base color, vertex color, metallic/roughness, emissive, and normal sampling. [`map-bake.test.ts`](../../src/bake-worker/map-bake.test.ts) covers nearest-surface priority and original triangle/material identity.
+Keep the selected source `faceIndex`, barycentric coordinates, and UV together through shading. That tuple identifies the material and drives base color, opacity, vertex color, metallic/roughness, occlusion, emissive, and normal sampling. Occlusion from a source map (or a short hemisphere estimate) is packed into the ORM red channel. [`map-bake.test.ts`](../../src/bake-worker/map-bake.test.ts) covers nearest-surface priority and original triangle/material identity.
 
 ## Transfer source normal maps through both tangent bases
 
