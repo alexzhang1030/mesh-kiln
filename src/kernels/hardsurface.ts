@@ -25,48 +25,169 @@ const EAR_AREA_EPS = 1e-16;
 
 /**
  * Hard-surface feature-preserving collapse. Locks large-dihedral panel seams
- * and collapses only coplanar / near-coplanar interior edges. Every output
+ * and collapses only non-feature edges onto an existing endpoint. Every output
  * position is copied from an input vertex — no new verts, no QEM slide, not
  * Instant Meshes / organic remesh.
  *
- * Flat patches become larger faces, then fan/ear-triangulate using only those
- * existing verts so export stays on Kiln's triangle / GLB path.
- *
- * `targetTriangles` is the runGeometry ceiling. This kernel is crease-limited
- * and does not QEM-slide toward that count.
+ * `targetTriangles` is a ceiling, same as the other Kiln geometry paths.
+ * After feature lock + coplanar patch merge, legal endpoint collapses continue
+ * until the count is at or below the ceiling or no legal collapse remains.
+ * A crease mesh may stop above the budget if every remaining edge is locked.
  */
 export async function simplifyHardSurface(
 	mesh: MeshGeometry,
-	_targetTriangles: number,
+	targetTriangles: number,
 	options: HardSurfaceOptions = {}
 ): Promise<MeshGeometry> {
 	const featureDegrees = options.featureDegrees ?? HARD_SURFACE_FEATURE_DEGREES;
 	const isCancelled = options.isCancelled ?? (() => false);
 	const onProgress = options.onProgress ?? (() => undefined);
-	onProgress(0.05);
+	onProgress(0.04);
 	assertRunning(isCancelled);
 
 	const welded = weldPositionSeams(mesh);
-	const faceCount = triangleCountOf(welded.indices);
-	if (faceCount <= 0) {
+	const target = Math.max(1, Math.floor(targetTriangles));
+	const sourceCount = triangleCountOf(welded.indices);
+	if (sourceCount <= 0) {
 		onProgress(1);
 		return welded;
 	}
+	if (sourceCount <= target) {
+		onProgress(1);
+		return finalizeFaces(welded.positions, facesFromIndices(welded.indices), welded);
+	}
 
-	onProgress(0.12);
-	const faces = facesFromIndices(welded.indices);
-	const normals: Vec3[] = [];
-	for (let face = 0; face < faces.length; face++) {
-		normals.push(faceNormal(welded.positions, faces[face] ?? [0, 0, 0]));
+	onProgress(0.1);
+	const sourceFaces = facesFromIndices(welded.indices);
+	const sourceNormals: Vec3[] = [];
+	for (let face = 0; face < sourceFaces.length; face++) {
+		sourceNormals.push(faceNormal(welded.positions, sourceFaces[face] ?? [0, 0, 0]));
 	}
 
 	const cosFeature = Math.cos((featureDegrees * Math.PI) / 180);
-	const edgeFaces = buildEdgeFaces(faces);
+	const sourceEdges = buildEdgeFaces(sourceFaces);
 	const featureKeys = new Set<number>();
-	for (const [key, users] of edgeFaces) {
-		if (isCreaseEdge(users, normals, cosFeature)) featureKeys.add(key);
+	for (const [key, users] of sourceEdges) {
+		if (isCreaseEdge(users, sourceNormals, cosFeature)) featureKeys.add(key);
+	}
+	const featureVerts = new Set<number>();
+	for (const key of featureKeys) {
+		const [a, b] = unpackEdgeKey(key);
+		featureVerts.add(a);
+		featureVerts.add(b);
 	}
 
+	onProgress(0.16);
+	const merged = await mergeCoplanarPatches(
+		welded.positions,
+		sourceFaces,
+		sourceNormals,
+		sourceEdges,
+		featureKeys,
+		cosFeature,
+		(value) => onProgress(0.16 + value * 0.24),
+		isCancelled
+	);
+	const working = merged.length > 0 ? merged : sourceFaces;
+	if (working.length <= target) {
+		onProgress(1);
+		return finalizeFaces(welded.positions, working, welded);
+	}
+
+	onProgress(0.42);
+	const collapsed = await collapseToBudget(
+		welded.positions,
+		working,
+		featureKeys,
+		featureVerts,
+		target,
+		(value) => onProgress(0.42 + value * 0.54),
+		isCancelled
+	);
+	onProgress(1);
+	return finalizeFaces(welded.positions, collapsed, welded);
+}
+
+/** Shared edges whose face-normal angle is at least `featureDegrees`. */
+export function collectFeatureEdges(
+	positions: Float32Array,
+	indices: Uint32Array,
+	featureDegrees = HARD_SURFACE_FEATURE_DEGREES
+): Array<[number, number]> {
+	const faces = facesFromIndices(indices);
+	const normals: Vec3[] = [];
+	for (let face = 0; face < faces.length; face++) {
+		normals.push(faceNormal(positions, faces[face] ?? [0, 0, 0]));
+	}
+	const cosFeature = Math.cos((featureDegrees * Math.PI) / 180);
+	const edges: Array<[number, number]> = [];
+	for (const [key, users] of buildEdgeFaces(faces)) {
+		if (!isCreaseEdge(users, normals, cosFeature)) continue;
+		edges.push(unpackEdgeKey(key));
+	}
+	return edges;
+}
+
+export function positionExistsIn(
+	x: number,
+	y: number,
+	z: number,
+	positions: Float32Array,
+	eps = HARD_SURFACE_POSITION_EPS
+): boolean {
+	const vertices = Math.floor(positions.length / 3);
+	for (let vertex = 0; vertex < vertices; vertex++) {
+		const dx = (positions[vertex * 3] ?? 0) - x;
+		const dy = (positions[vertex * 3 + 1] ?? 0) - y;
+		const dz = (positions[vertex * 3 + 2] ?? 0) - z;
+		if (dx * dx + dy * dy + dz * dz <= eps * eps) return true;
+	}
+	return false;
+}
+
+type Face = [number, number, number];
+
+type LiveFace = {
+	verts: Face;
+	deleted: boolean;
+};
+
+type CollapseCand = {
+	remove: number;
+	keep: number;
+	score: number;
+};
+
+const FLIP_DOT = 0;
+
+function finalizeFaces(positions: Float32Array, faces: Face[], fallback: MeshGeometry): MeshGeometry {
+	if (faces.length === 0) return fallback;
+	const packed = new Uint32Array(faces.length * 3);
+	for (let i = 0; i < faces.length; i++) {
+		const tri = faces[i] ?? [0, 0, 0];
+		packed[i * 3] = tri[0];
+		packed[i * 3 + 1] = tri[1];
+		packed[i * 3 + 2] = tri[2];
+	}
+	const compacted = compactGeometry(positions, packed);
+	const geometry = filterDegenerateTriangles({
+		positions: compacted.positions,
+		indices: compacted.indices,
+		normals: computeNormals(compacted.positions, compacted.indices)
+	});
+	return triangleCountOf(geometry.indices) > 0 ? geometry : fallback;
+}
+
+async function mergeCoplanarPatches(
+	positions: Float32Array,
+	faces: Face[],
+	normals: Vec3[],
+	edgeFaces: Map<number, number[]>,
+	featureKeys: Set<number>,
+	cosFeature: number,
+	onProgress: (value: number) => void,
+	isCancelled: () => boolean
+): Promise<Face[]> {
 	const parent = new Int32Array(faces.length);
 	const seed = new Int32Array(faces.length);
 	for (let face = 0; face < faces.length; face++) {
@@ -131,7 +252,7 @@ export async function simplifyHardSurface(
 			lastYield = nowMs();
 			assertRunning(isCancelled);
 		}
-		const replaced = retessellatePatch(welded.positions, faces, normals, members, edgeFaces);
+		const replaced = retessellatePatch(positions, faces, normals, members, edgeFaces);
 		if (replaced) outFaces.push(...replaced);
 		else {
 			for (const face of members) {
@@ -140,69 +261,407 @@ export async function simplifyHardSurface(
 			}
 		}
 		done++;
-		onProgress(0.12 + (0.82 * done) / groups.size);
+		onProgress(done / Math.max(1, groups.size));
 	}
-
-	if (outFaces.length === 0) {
-		onProgress(1);
-		return welded;
-	}
-
-	const packed = new Uint32Array(outFaces.length * 3);
-	for (let i = 0; i < outFaces.length; i++) {
-		const tri = outFaces[i] ?? [0, 0, 0];
-		packed[i * 3] = tri[0];
-		packed[i * 3 + 1] = tri[1];
-		packed[i * 3 + 2] = tri[2];
-	}
-	const compacted = compactGeometry(welded.positions, packed);
-	const geometry = filterDegenerateTriangles({
-		positions: compacted.positions,
-		indices: compacted.indices,
-		normals: computeNormals(compacted.positions, compacted.indices)
-	});
-	onProgress(1);
-	return triangleCountOf(geometry.indices) > 0 ? geometry : welded;
+	return outFaces;
 }
 
-/** Shared edges whose face-normal angle is at least `featureDegrees`. */
-export function collectFeatureEdges(
+async function collapseToBudget(
 	positions: Float32Array,
-	indices: Uint32Array,
-	featureDegrees = HARD_SURFACE_FEATURE_DEGREES
-): Array<[number, number]> {
-	const faces = facesFromIndices(indices);
-	const normals: Vec3[] = [];
-	for (let face = 0; face < faces.length; face++) {
-		normals.push(faceNormal(positions, faces[face] ?? [0, 0, 0]));
+	inputFaces: Face[],
+	featureKeys: Set<number>,
+	featureVerts: Set<number>,
+	target: number,
+	onProgress: (value: number) => void,
+	isCancelled: () => boolean
+): Promise<Face[]> {
+	const vertexCount = Math.floor(positions.length / 3);
+	const live: LiveFace[] = inputFaces.map((verts) => ({ verts, deleted: false }));
+	const vertFaces: Array<Set<number>> = Array.from({ length: vertexCount }, () => new Set());
+	for (let face = 0; face < live.length; face++) {
+		const tri = live[face]?.verts;
+		if (!tri) continue;
+		vertFaces[tri[0]]?.add(face);
+		vertFaces[tri[1]]?.add(face);
+		vertFaces[tri[2]]?.add(face);
 	}
-	const cosFeature = Math.cos((featureDegrees * Math.PI) / 180);
-	const edges: Array<[number, number]> = [];
-	for (const [key, users] of buildEdgeFaces(faces)) {
-		if (!isCreaseEdge(users, normals, cosFeature)) continue;
-		edges.push(unpackEdgeKey(key));
+	let faceCount = inputFaces.length;
+	const start = faceCount;
+	let lastYield = nowMs();
+
+	const featureDist = minFeatureDistance(positions, featureVerts, vertexCount);
+
+	while (faceCount > target) {
+		assertRunning(isCancelled);
+		const now = nowMs();
+		if (now - lastYield >= HARD_SURFACE_YIELD_INTERVAL_MS) {
+			await yieldToEventLoop();
+			lastYield = nowMs();
+			assertRunning(isCancelled);
+		}
+
+		const candidates = collectCollapseCandidates(
+			positions,
+			live,
+			vertFaces,
+			featureKeys,
+			featureVerts,
+			featureDist
+		);
+		if (candidates.length === 0) break;
+		candidates.sort((a, b) => b.score - a.score);
+
+		const blocked = new Set<number>();
+		let collapsed = 0;
+		for (const cand of candidates) {
+			if (faceCount <= target) break;
+			if (blocked.has(cand.remove) || blocked.has(cand.keep)) continue;
+			if (!collapseIsLegal(positions, live, vertFaces, featureKeys, cand.remove, cand.keep)) continue;
+			const before = faceCount;
+			faceCount = applyCollapse(live, vertFaces, cand.remove, cand.keep, faceCount);
+			if (faceCount >= before) continue;
+			collapsed++;
+			blocked.add(cand.remove);
+			blocked.add(cand.keep);
+			for (const neighbor of vertexNeighbors(vertFaces, live, cand.keep)) blocked.add(neighbor);
+		}
+		if (collapsed === 0) break;
+		onProgress(Math.min(1, (start - faceCount) / Math.max(1, start - target)));
 	}
-	return edges;
+
+	const kept: Face[] = [];
+	for (const face of live) {
+		if (!face.deleted) kept.push(face.verts);
+	}
+	return kept;
 }
 
-export function positionExistsIn(
-	x: number,
-	y: number,
-	z: number,
+function minFeatureDistance(positions: Float32Array, featureVerts: Set<number>, vertexCount: number): Float64Array {
+	const dist = new Float64Array(vertexCount);
+	if (featureVerts.size === 0) return dist;
+	const fx: number[] = [];
+	const fy: number[] = [];
+	const fz: number[] = [];
+	for (const vertex of featureVerts) {
+		fx.push(positions[vertex * 3] ?? 0);
+		fy.push(positions[vertex * 3 + 1] ?? 0);
+		fz.push(positions[vertex * 3 + 2] ?? 0);
+	}
+	for (let vertex = 0; vertex < vertexCount; vertex++) {
+		if (featureVerts.has(vertex)) {
+			dist[vertex] = 0;
+			continue;
+		}
+		const x = positions[vertex * 3] ?? 0;
+		const y = positions[vertex * 3 + 1] ?? 0;
+		const z = positions[vertex * 3 + 2] ?? 0;
+		let best = Infinity;
+		for (let i = 0; i < fx.length; i++) {
+			const dx = x - (fx[i] ?? 0);
+			const dy = y - (fy[i] ?? 0);
+			const dz = z - (fz[i] ?? 0);
+			const d = dx * dx + dy * dy + dz * dz;
+			if (d < best) best = d;
+		}
+		dist[vertex] = best;
+	}
+	return dist;
+}
+
+function collectCollapseCandidates(
 	positions: Float32Array,
-	eps = HARD_SURFACE_POSITION_EPS
+	live: LiveFace[],
+	vertFaces: Array<Set<number>>,
+	featureKeys: Set<number>,
+	featureVerts: Set<number>,
+	featureDist: Float64Array
+): CollapseCand[] {
+	const seen = new Set<number>();
+	const candidates: CollapseCand[] = [];
+	for (let fi = 0; fi < live.length; fi++) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		const [a, b, c] = face.verts;
+		const edges: Array<[number, number]> = [
+			[a, b],
+			[b, c],
+			[c, a]
+		];
+		for (const [u, v] of edges) {
+			const key = packEdgeKey(u, v);
+			if (seen.has(key)) continue;
+			seen.add(key);
+			if (featureKeys.has(key)) continue;
+			const featU = featureVerts.has(u);
+			const featV = featureVerts.has(v);
+			if (featU && featV) continue;
+			const users = edgeIncidentCount(vertFaces, live, u, v);
+			if (users < 1 || users > 2) continue;
+
+			let remove = u;
+			let keep = v;
+			if (featU && !featV) {
+				remove = v;
+				keep = u;
+			} else if (featV && !featU) {
+				remove = u;
+				keep = v;
+			} else if ((featureDist[u] ?? 0) < (featureDist[v] ?? 0)) {
+				remove = v;
+				keep = u;
+			}
+
+			if (!collapseIsLegal(positions, live, vertFaces, featureKeys, remove, keep)) {
+				if (featU || featV) continue;
+				if (!collapseIsLegal(positions, live, vertFaces, featureKeys, keep, remove)) continue;
+				const swap = remove;
+				remove = keep;
+				keep = swap;
+			}
+
+			const n0 = faceNormal(positions, face.verts);
+			const other = oppositeFace(vertFaces, live, u, v, fi);
+			const n1 = other ? faceNormal(positions, other.verts) : n0;
+			const flat = clamp01(vec3Dot(n0, n1));
+			const length = edgeLength(positions, u, v);
+			const interior = featU || featV ? 0 : 1_000_000;
+			const away = featureDist[remove] ?? 0;
+			candidates.push({
+				remove,
+				keep,
+				score: interior + away * 10 + flat * 1_000 - length
+			});
+		}
+	}
+	return candidates;
+}
+
+function collapseIsLegal(
+	positions: Float32Array,
+	live: LiveFace[],
+	vertFaces: Array<Set<number>>,
+	featureKeys: Set<number>,
+	remove: number,
+	keep: number
 ): boolean {
-	const vertices = Math.floor(positions.length / 3);
-	for (let vertex = 0; vertex < vertices; vertex++) {
-		const dx = (positions[vertex * 3] ?? 0) - x;
-		const dy = (positions[vertex * 3 + 1] ?? 0) - y;
-		const dz = (positions[vertex * 3 + 2] ?? 0) - z;
-		if (dx * dx + dy * dy + dz * dz <= eps * eps) return true;
+	if (remove === keep) return false;
+	if (featureKeys.has(packEdgeKey(remove, keep))) return false;
+	const star = vertFaces[remove];
+	if (!star || star.size === 0) return false;
+	if (!sharesEdge(live, star, remove, keep)) return false;
+	if (!linkCondition(vertFaces, live, remove, keep)) return false;
+	if (collapseFlips(positions, live, star, remove, keep)) return false;
+	if (collapseDropsFeature(live, vertFaces, featureKeys, remove, keep)) return false;
+	return true;
+}
+
+function sharesEdge(live: LiveFace[], star: Set<number>, remove: number, keep: number): boolean {
+	for (const fi of star) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		if (faceHasVertex(face.verts, keep)) return true;
 	}
 	return false;
 }
 
-type Face = [number, number, number];
+function linkCondition(
+	vertFaces: Array<Set<number>>,
+	live: LiveFace[],
+	remove: number,
+	keep: number
+): boolean {
+	const keepNeighbors = vertexNeighbors(vertFaces, live, keep);
+	const shared = new Set<number>();
+	for (const vertex of vertexNeighbors(vertFaces, live, remove)) {
+		if (vertex === keep) continue;
+		if (keepNeighbors.has(vertex)) shared.add(vertex);
+	}
+	const opposites = new Set<number>();
+	for (const fi of vertFaces[remove] ?? []) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		if (!faceHasVertex(face.verts, keep)) continue;
+		for (const vertex of face.verts) {
+			if (vertex !== remove && vertex !== keep) opposites.add(vertex);
+		}
+	}
+	if (opposites.size === 0 || opposites.size > 2) return false;
+	if (shared.size !== opposites.size) return false;
+	for (const vertex of opposites) {
+		if (!shared.has(vertex)) return false;
+	}
+	return true;
+}
+
+function collapseFlips(
+	positions: Float32Array,
+	live: LiveFace[],
+	star: Set<number>,
+	remove: number,
+	keep: number
+): boolean {
+	for (const fi of star) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		const remapped = remapFace(face.verts, remove, keep);
+		if (!remapped) continue;
+		const next = faceNormal(positions, remapped);
+		const prev = faceNormal(positions, face.verts);
+		if (vec3Dot(prev, next) < FLIP_DOT) return true;
+	}
+	return false;
+}
+
+function collapseDropsFeature(
+	live: LiveFace[],
+	vertFaces: Array<Set<number>>,
+	featureKeys: Set<number>,
+	remove: number,
+	keep: number
+): boolean {
+	const star = vertFaces[remove] ?? new Set();
+	const affected = new Set<number>();
+	for (const fi of star) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		affected.add(packEdgeKey(face.verts[0], face.verts[1]));
+		affected.add(packEdgeKey(face.verts[1], face.verts[2]));
+		affected.add(packEdgeKey(face.verts[2], face.verts[0]));
+	}
+	for (const key of affected) {
+		if (!featureKeys.has(key)) continue;
+		const [fa, fb] = unpackEdgeKey(key);
+		let survived = false;
+		const carriers = facesWithEdge(vertFaces, live, fa, fb);
+		for (const fi of carriers) {
+			const face = live[fi];
+			if (!face || face.deleted) continue;
+			if (!star.has(fi)) {
+				survived = true;
+				break;
+			}
+			const remapped = remapFace(face.verts, remove, keep);
+			if (remapped && faceHasEdge(remapped, fa, fb)) {
+				survived = true;
+				break;
+			}
+		}
+		if (!survived) return true;
+	}
+	return false;
+}
+
+function applyCollapse(
+	live: LiveFace[],
+	vertFaces: Array<Set<number>>,
+	remove: number,
+	keep: number,
+	faceCount: number
+): number {
+	const star = [...(vertFaces[remove] ?? [])];
+	for (const fi of star) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		for (const vertex of face.verts) vertFaces[vertex]?.delete(fi);
+		const remapped = remapFace(face.verts, remove, keep);
+		if (!remapped) {
+			face.deleted = true;
+			faceCount--;
+			continue;
+		}
+		face.verts = remapped;
+		for (const vertex of remapped) vertFaces[vertex]?.add(fi);
+	}
+	vertFaces[remove]?.clear();
+	return faceCount;
+}
+
+function remapFace(tri: Face, remove: number, keep: number): Face | null {
+	const a = tri[0] === remove ? keep : tri[0];
+	const b = tri[1] === remove ? keep : tri[1];
+	const c = tri[2] === remove ? keep : tri[2];
+	if (a === b || b === c || c === a) return null;
+	return [a, b, c];
+}
+
+function vertexNeighbors(vertFaces: Array<Set<number>>, live: LiveFace[], vertex: number): Set<number> {
+	const neighbors = new Set<number>();
+	for (const fi of vertFaces[vertex] ?? []) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		for (const other of face.verts) {
+			if (other !== vertex) neighbors.add(other);
+		}
+	}
+	return neighbors;
+}
+
+function faceHasVertex(tri: Face, vertex: number): boolean {
+	return tri[0] === vertex || tri[1] === vertex || tri[2] === vertex;
+}
+
+function faceHasEdge(tri: Face, a: number, b: number): boolean {
+	return (
+		(tri[0] === a && tri[1] === b) ||
+		(tri[1] === a && tri[2] === b) ||
+		(tri[2] === a && tri[0] === b) ||
+		(tri[0] === b && tri[1] === a) ||
+		(tri[1] === b && tri[2] === a) ||
+		(tri[2] === b && tri[0] === a)
+	);
+}
+
+function facesWithEdge(
+	vertFaces: Array<Set<number>>,
+	live: LiveFace[],
+	a: number,
+	b: number
+): number[] {
+	const out: number[] = [];
+	for (const fi of vertFaces[a] ?? []) {
+		const face = live[fi];
+		if (!face || face.deleted) continue;
+		if (faceHasVertex(face.verts, b)) out.push(fi);
+	}
+	return out;
+}
+
+function edgeIncidentCount(
+	vertFaces: Array<Set<number>>,
+	live: LiveFace[],
+	a: number,
+	b: number
+): number {
+	return facesWithEdge(vertFaces, live, a, b).length;
+}
+
+function oppositeFace(
+	vertFaces: Array<Set<number>>,
+	live: LiveFace[],
+	a: number,
+	b: number,
+	self: number
+): LiveFace | null {
+	for (const fi of facesWithEdge(vertFaces, live, a, b)) {
+		if (fi === self) continue;
+		const face = live[fi];
+		if (face && !face.deleted) return face;
+	}
+	return null;
+}
+
+function edgeLength(positions: Float32Array, a: number, b: number): number {
+	const dx = (positions[a * 3] ?? 0) - (positions[b * 3] ?? 0);
+	const dy = (positions[a * 3 + 1] ?? 0) - (positions[b * 3 + 1] ?? 0);
+	const dz = (positions[a * 3 + 2] ?? 0) - (positions[b * 3 + 2] ?? 0);
+	return Math.hypot(dx, dy, dz);
+}
+
+function clamp01(value: number): number {
+	if (value <= 0) return 0;
+	if (value >= 1) return 1;
+	return value;
+}
 
 function facesFromIndices(indices: Uint32Array): Face[] {
 	const faces: Face[] = [];

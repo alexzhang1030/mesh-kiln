@@ -12,15 +12,24 @@ import type { MeshGeometry } from './types';
 import { triangleCountOf, vertexCountOf } from './types';
 
 describe('hard-surface kernel', () => {
-	it('drops redundant loops on a flat panel and keeps only input positions', async () => {
+	it('hits the triangle ceiling on a subdivided flat panel', async () => {
 		const input = createGridPanel(8);
 		expect(vertexCountOf(input.positions)).toBe(81);
 		expect(triangleCountOf(input.indices)).toBe(128);
 
 		const reduced = await simplifyHardSurface(input, 8);
-		expect(vertexCountOf(reduced.positions)).toBeLessThan(vertexCountOf(input.positions));
-		expect(triangleCountOf(reduced.indices)).toBeLessThan(triangleCountOf(input.indices));
 		expect(triangleCountOf(reduced.indices)).toBeGreaterThan(0);
+		expect(triangleCountOf(reduced.indices)).toBeLessThanOrEqual(8);
+		expect(vertexCountOf(reduced.positions)).toBeLessThan(vertexCountOf(input.positions));
+		assertEveryOutputVertexInInput(reduced, input);
+	});
+
+	it('hits a tight ceiling on a dense coplanar grid', async () => {
+		const input = createGridPanel(16);
+		expect(triangleCountOf(input.indices)).toBe(512);
+		const reduced = await simplifyHardSurface(input, 4);
+		expect(triangleCountOf(reduced.indices)).toBeGreaterThan(0);
+		expect(triangleCountOf(reduced.indices)).toBeLessThanOrEqual(4);
 		assertEveryOutputVertexInInput(reduced, input);
 	});
 
@@ -45,6 +54,7 @@ describe('hard-surface kernel', () => {
 
 		const reduced = await simplifyHardSurface(input, 12);
 		expect(vertexCountOf(reduced.positions)).toBeLessThan(vertexCountOf(welded.positions));
+		expect(triangleCountOf(reduced.indices)).toBeLessThan(triangleCountOf(welded.indices));
 		assertEveryOutputVertexInInput(reduced, input);
 		assertFeatureEdgesSurvive(welded, creases, reduced);
 	});
