@@ -11,6 +11,7 @@ Auto chooses the appearance-preserving path for each model:
 - Open reconstructions (gaussian_mesh, scans: unique positions, few shared edges, ≥10k triangles) voxel-remesh, unwrap a fresh watlas atlas, and bake PBR maps. Unlit vertex-color sources stay unlit.
 - Dense connected sculpts and triangle soup weld exact position seams, simplify the continuous surface, unwrap a fresh watlas atlas, and bake PBR maps.
 - Explicit Voxel mode rebuilds the surface through occupancy and dual contouring before atlas bake.
+- Explicit Hard-surface mode locks large-dihedral panel seams and collapses only coplanar interior edges, keeping source vertex positions. It is not Instant Meshes or organic remesh. Auto never selects it. Atlas bake reuses the existing geometry-then-atlas switch (Geometry only skips maps).
 
 The atlas bake transfers base color (with opacity), tangent-space normal, metallic/roughness, occlusion, emissive, and vertex color. Occlusion is packed in the ORM red channel. Source sampling and exported UVs follow the glTF upper-left texture origin.
 
@@ -49,6 +50,7 @@ The bake worker loads `/watlas.wasm` through watlas `findWasmBinary`. A direct p
 | **Geometry · Auto dense** | `kernels/surface-simplify.ts` | Weld exact position seams and simplify the continuous surface to the triangle ceiling. |
 | **Geometry · Authored** | `kernels/simplify.ts` | Attribute-aware QEM with source positions, UVs, vertex colors, and material groups. |
 | **Geometry · Voxel** | `kernels/remesh.ts` | Occupancy, dual contour/QEF, source snap, and QEM ceiling. Dilate/fill only when occupancy is a solid volume. |
+| **Geometry · Hard-surface** | `kernels/hardsurface.ts` | Explicit only. Feature-preserving collapse: lock large-dihedral seams, drop coplanar subdivision, no new/slid vertices. Not Instant Meshes / organic remesh. |
 | **Atlas** | watlas + `bake-worker/map-bake.ts` | Fresh UV charts and BVH projection of PBR source maps. |
 | **Export** | glTF-Transform | One GLB with geometry, tangents, and embedded PNG maps. |
 

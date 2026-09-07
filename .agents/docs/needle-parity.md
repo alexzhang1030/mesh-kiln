@@ -8,7 +8,7 @@ Researched 2026-09-02 from the [official Mesh Baker docs](https://engine.needle.
 | --- | --- | --- |
 | Triangle budget | Ceiling on output triangles | Yes |
 | Target: triangle count \| surface error | Count ceiling, or meshoptimizer relative error and let the count fall out | Surface error added |
-| Topology: voxel remesh \| simplify authored | Rebuild vs keep authored connectivity | Auto / Voxel / Authored |
+| Topology: voxel remesh \| simplify authored | Rebuild vs keep authored connectivity | Auto / Voxel / Authored. Kiln also has explicit Hard-surface feature-preserving collapse (not Instant Meshes / organic remesh); Auto never selects it. |
 | Interactive geometry preview | Drag the budget; geometry updates before atlas bake | Geometry only |
 | Texture resolution 256–4096 | Atlas size | Yes |
 | Shading Lit \| Unlit | Preview lighting off | Yes. Mesh (untextured) lives under Maps |

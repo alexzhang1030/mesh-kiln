@@ -1,4 +1,4 @@
-export type TopologyMode = 'auto' | 'voxel' | 'authored';
+export type TopologyMode = 'auto' | 'voxel' | 'authored' | 'hardsurface';
 
 export type GeometryTarget = 'triangles' | 'error';
 
