@@ -155,7 +155,7 @@ function setInteractive(event: Event): void {
 
 function setTopology(event: Event): void {
 	const value = (event.target as HTMLSelectElement).value as TopologyMode;
-	if (value === 'auto' || value === 'voxel' || value === 'authored') {
+	if (value === 'auto' || value === 'voxel' || value === 'authored' || value === 'hardsurface') {
 		session?.setSettings({ topologyMode: value });
 	}
 }
@@ -310,8 +310,14 @@ function bakedHudClass(): string {
 						<option value="auto">Auto · model aware</option>
 						<option value="voxel">Voxel remesh · PBR atlas</option>
 						<option value="authored">Simplify authored mesh</option>
+						<option value="hardsurface">
+							Hard-surface · feature-preserving collapse (not Instant Meshes / organic remesh)
+						</option>
 					</select>
-					<small class="field-note">Auto voxel-remeshes open reconstructions, seam-welds dense sculpts, and keeps source maps on clean models unless the budget cuts more than half the triangles.</small>
+					<small class="field-note">Auto voxel-remeshes open reconstructions, seam-welds dense sculpts, and keeps source maps on clean models unless the budget cuts more than half the triangles. Auto never selects hard-surface.</small>
+					<small v-if="snapshot.settings.topologyMode === 'hardsurface'" class="field-note">
+						Locks large-dihedral panel seams and collapses only coplanar interior edges. Vertices stay on source positions. Not Instant Meshes or organic remesh.
+					</small>
 				</label>
 				<label class="field check">
 					<input

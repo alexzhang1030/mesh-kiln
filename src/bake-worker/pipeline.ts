@@ -1,3 +1,4 @@
+import { simplifyHardSurface } from '../kernels/hardsurface';
 import { remesh } from '../kernels/remesh';
 import { simplifyAuthored } from '../kernels/simplify';
 import { simplifySurface } from '../kernels/surface-simplify';
@@ -22,8 +23,7 @@ export type BakeControl = {
 };
 
 type GeometryPass =
-	| { topology: 'voxel'; geometry: MeshGeometry }
-	| { topology: 'surface'; geometry: MeshGeometry }
+	| { topology: 'voxel' | 'surface' | 'hardsurface'; geometry: MeshGeometry }
 	| { topology: 'authored'; mesh: SourceMesh };
 
 export async function runBake(
@@ -82,7 +82,8 @@ export async function runBake(
 				return;
 			}
 			case 'voxel':
-			case 'surface': {
+			case 'surface':
+			case 'hardsurface': {
 				emit({ type: 'start', stage: 'uv', topology });
 				emit({ type: 'progress', stage: 'uv', value: 0, topology });
 				const unwrapped = await unwrap(pass.geometry, settings.mapSize);
@@ -170,6 +171,15 @@ async function runGeometry(
 			const mesh = await simplifyAuthored(source, qemTarget, { targetError: error });
 			onProgress(1);
 			return { mesh, topology };
+		}
+		case 'hardsurface': {
+			onProgress(0.1);
+			const geometry = await simplifyHardSurface(input, qemTarget, {
+				onProgress,
+				isCancelled: control.isCancelled
+			});
+			onProgress(1);
+			return { geometry, topology };
 		}
 		default: {
 			const exhausted: never = topology;

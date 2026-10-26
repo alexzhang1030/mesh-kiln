@@ -6,7 +6,7 @@ import {
 	type TopologyMode
 } from './types';
 
-export type TopologyChoice = 'voxel' | 'surface' | 'authored';
+export type TopologyChoice = 'voxel' | 'surface' | 'authored' | 'hardsurface';
 
 export const DENSE_SCULPT_TRIANGLES = 100_000;
 export const FRAGMENT_UNIQUE_POSITION_RATIO = 0.97;
@@ -88,6 +88,8 @@ export function resolveTopologyMode(
 			return 'voxel';
 		case 'authored':
 			return 'authored';
+		case 'hardsurface':
+			return 'hardsurface';
 		case 'auto':
 			if (fragmented && sourceTriangleCount >= FRAGMENT_VOXEL_TRIANGLES) return 'voxel';
 			if (sourceTriangleCount >= DENSE_SCULPT_TRIANGLES || soup) return 'surface';
@@ -129,6 +131,8 @@ export function topologyChoiceLabel(choice: TopologyChoice): string {
 			return 'Seam-welded surface';
 		case 'authored':
 			return 'Authored QEM';
+		case 'hardsurface':
+			return 'Hard-surface feature-preserving collapse';
 		default: {
 			const exhausted: never = choice;
 			return exhausted;

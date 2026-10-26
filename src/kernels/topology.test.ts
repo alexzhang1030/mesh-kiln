@@ -10,6 +10,7 @@ import {
 	resolveTopologyForMesh,
 	resolveTopologyMode,
 	sharedEdgeRatio,
+	topologyChoiceLabel,
 	uniquePositionRatio
 } from './topology';
 
@@ -57,9 +58,21 @@ describe('topology auto', () => {
 		expect(resolveTopologyMode('auto', 129_060, false, false)).toBe('surface');
 	});
 
-	it('honors an explicit Voxel or Authored override', () => {
+	it('honors an explicit Voxel, Authored, or Hard-surface override', () => {
 		expect(resolveTopologyMode('voxel', 50_000, false)).toBe('voxel');
 		expect(resolveTopologyMode('authored', 200_000, false)).toBe('authored');
+		expect(resolveTopologyMode('hardsurface', 50_000, false)).toBe('hardsurface');
+		expect(resolveTopologyMode('hardsurface', 200_000, true)).toBe('hardsurface');
+	});
+
+	it('never selects hard-surface from Auto', () => {
+		expect(resolveTopologyMode('auto', 50_000, false)).not.toBe('hardsurface');
+		expect(resolveTopologyMode('auto', DENSE_SCULPT_TRIANGLES, false)).not.toBe('hardsurface');
+		expect(resolveTopologyMode('auto', 20_000, true)).not.toBe('hardsurface');
+		expect(resolveTopologyMode('auto', 20_000, false, true)).not.toBe('hardsurface');
+		expect(
+			resolveTopologyMode('auto', 50_000, false, false, { triangleBudget: 6_000 })
+		).not.toBe('hardsurface');
 	});
 
 	it('treats an indexed torus or crest as a clean model, not soup', () => {
@@ -111,5 +124,10 @@ describe('topology auto', () => {
 		expect(sharedEdgeRatio(indices)).toBeLessThan(0.65);
 		expect(isFragmentedSurface(positions, indices)).toBe(true);
 		expect(resolveTopologyForMesh('auto', { positions, indices, normals: positions })).toBe('authored');
+	});
+
+	it('labels hard-surface as feature-preserving collapse, not remesh', () => {
+		expect(topologyChoiceLabel('hardsurface')).toBe('Hard-surface feature-preserving collapse');
+		expect(topologyChoiceLabel('hardsurface')).not.toMatch(/Instant Meshes|organic remesh/i);
 	});
 });

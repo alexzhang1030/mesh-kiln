@@ -280,6 +280,37 @@ describe('authored appearance', () => {
 		expect(stages).toEqual(['geometry', 'export']);
 	});
 
+	it('geometry-only hard-surface bake skips the atlas stages', async () => {
+		const source: SourceMesh = {
+			positions: new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0.5, 0.5, 0]),
+			indices: new Uint32Array([0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4]),
+			normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]),
+			uvs: null,
+			colors: null,
+			triangleMaterials: new Uint16Array([0, 0, 0, 0]),
+			materials: [
+				{
+					baseColorFactor: [1, 1, 1, 1],
+					metallicFactor: 0,
+					roughnessFactor: 1,
+					emissiveFactor: [0, 0, 0]
+				}
+			]
+		};
+		const { complete, stages } = await bake(source, {
+			triangleBudget: 8,
+			topologyMode: 'hardsurface',
+			mapSize: 64,
+			geometryOnly: true
+		});
+		expect(complete.topology).toBe('hardsurface');
+		expect(complete.triangleCount).toBeGreaterThan(0);
+		expect(stages).toEqual(['geometry', 'export']);
+		const { source: baked } = await parseGlb(complete.glb);
+		expect(baked.materials[0]?.baseColor).toBeUndefined();
+		expect(baked.materials[0]?.unlit).toBe(true);
+	});
+
 	it('geometry-only voxel bake skips the atlas stages', async () => {
 		const glb = await createCrestGlb({ segments: 16, name: 'crest-geo' });
 		const { source } = await parseGlb(glb);
